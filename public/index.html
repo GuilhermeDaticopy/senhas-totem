@@ -145,7 +145,7 @@
         let socket;
         try {
             // Conecta ao servidor Node.js que está rodando em localhost:3000
-            socket = io('http://localhost:3000', {
+            socket = io('https://senhas-totem.onrender.com/', {
                 reconnection: true,
                 reconnectionAttempts: 5,
                 reconnectionDelay: 1000
