@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Senhas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #display-screen {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: white;
+            font-family: 'Arial Black', sans-serif;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            overflow: hidden;
+            border: 3px solid #e2e8f0;
+        }
+        .senha-chamada {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .servico-btn {
+            transition: all 0.3s ease;
+        }
+        .servico-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Container principal -->
+    <div class="container mx-auto px-4 py-8">
+        <!-- Navegação por abas -->
+        <div class="flex border-b border-gray-300 mb-6">
+            <button class="tab-btn py-2 px-4 font-semibold border-b-2 border-transparent hover:border-blue-500" data-tab="totem">Totem</button>
+            <button class="tab-btn py-2 px-4 font-semibold border-b-2 border-transparent hover:border-blue-500" data-tab="display">Painel Visor</button>
+            <button class="tab-btn py-2 px-4 font-semibold border-b-2 border-transparent hover:border-blue-500" data-tab="atendente">Painel Atendente</button>
+        </div>
+
+        <!-- Conteúdo das abas -->
+        <div id="totem" class="tab-content active bg-white rounded-lg shadow-lg p-6">
+            <h1 class="text-3xl font-bold text-center mb-8">Selecione o Tipo de Atendimento</h1>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <button class="servico-btn bg-blue-500 text-white py-12 rounded-lg text-xl font-bold" onclick="gerarSenha('Normal')">ATENDIMENTO NORMAL</button>
+                <button class="servico-btn bg-green-500 text-white py-12 rounded-lg text-xl font-bold" onclick="gerarSenha('Prioritário')">ATENDIMENTO PRIORITÁRIO</button>
+                <button class="servico-btn bg-yellow-600 text-white py-12 rounded-lg text-xl font-bold" onclick="gerarSenha('Retirada')">RETIRADA DE DOCUMENTOS</button>
+            </div>
+            <div id="senha-gerada" class="mt-8 text-center hidden">
+                <div class="inline-block bg-gray-800 text-white px-8 py-4 rounded-lg">
+                    <h2 class="text-xl mb-2">Sua Senha:</h2>
+                    <div id="numero-senha" class="text-4xl font-bold"></div>
+                    <p id="tipo-senha" class="mt-2"></p>
+                    <p class="text-sm mt-4">Dirija-se ao painel de espera</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel do visor -->
+        <div id="display" class="tab-content bg-white rounded-lg shadow-lg p-6">
+            <div id="display-screen" class="rounded-lg p-8 mb-6 text-center">
+                <div class="bg-white/10 backdrop-blur-sm p-4 rounded-t-lg">
+                    <h1 class="text-4xl font-bold mb-4">SENHA CHAMADA</h1>
+                </div>
+                <div class="p-8">
+                    <div id="senha-display" class="text-8xl font-extrabold senha-chamada hidden text-center"></div>
+                    <div id="guiche-display" class="text-4xl mt-6 font-medium hidden text-center"></div>
+                    <div id="mensagem-aguarde" class="text-3xl mt-8 text-center animate-pulse">AGUARDE SENHA...</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-gray-100 p-4 rounded-lg">
+                    <h3 class="font-bold mb-2">Normal</h3>
+                    <div id="fila-normal" class="text-2xl font-bold">0</div>
+                </div>
+                <div class="bg-gray-100 p-4 rounded-lg">
+                    <h3 class="font-bold mb-2">Prioritário</h3>
+                    <div id="fila-prioritario" class="text-2xl font-bold">0</div>
+                </div>
+                <div class="bg-gray-100 p-4 rounded-lg">
+                    <h3 class="font-bold mb-2">Retirada</h3>
+                    <div id="fila-retirada" class="text-2xl font-bold">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel do atendente (com login) -->
+        <div id="atendente" class="tab-content bg-white rounded-lg shadow-lg p-6">
+            <div id="login-container" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow">
+                <h2 class="text-2xl font-bold text-center mb-6">Login do Atendente</h2>
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2" for="username">Usuário</label>
+                    <input type="text" id="username" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 mb-2" for="password">Senha</label>
+                    <input type="password" id="password" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <button onclick="fazerLogin()" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors">Entrar</button>
+                <div id="login-error" class="text-red-500 mt-2 hidden"></div>
+            </div>
+
+            <div id="atendente-panel" class="hidden">
+                <h1 class="text-2xl font-bold mb-6">Painel de Atendimento</h1>
+                
+                <div class="mb-6">
+                    <label class="block mb-2">Selecione o Guichê:</label>
+                    <select id="select-guiche" class="border rounded-lg px-3 py-2">
+                        <option value="1">Guichê 1</option>
+                        <option value="2">Guichê 2</option>
+                        <option value="3">Guichê 3</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <button onclick="chamarProximaSenha('Normal')" class="bg-blue-500 text-white py-4 rounded-lg font-bold">Chamar Normal</button>
+                    <button onclick="chamarProximaSenha('Prioritário')" class="bg-green-500 text-white py-4 rounded-lg font-bold">Chamar Prioritário</button>
+                    <button onclick="chamarProximaSenha('Retirada')" class="bg-yellow-600 text-white py-4 rounded-lg font-bold">Chamar Retirada</button>
+                </div>
+
+                <div class="bg-gray-100 p-4 rounded-lg mb-6">
+                    <h2 class="font-bold mb-2">Senha Atual</h2>
+                    <div id="senha-atual" class="text-3xl font-bold">Nenhuma senha chamada</div>
+                    <div id="senha-tipo" class="text-xl"></div>
+                    <div id="senha-tempo" class="text-sm text-gray-600 mt-2"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button onclick="finalizarAtendimento()" class="bg-gray-500 text-white py-3 rounded-lg">Finalizar Atendimento</button>
+                    <button onclick="redirecionarSenha()" class="bg-purple-500 text-white py-3 rounded-lg">Redirecionar Senha</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração inicial
+        let socket;
+        try {
+            // Conecta ao servidor Node.js que está rodando em localhost:3000
+            socket = io('http://localhost:3000', {
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
+            
+            socket.on('connect', () => {
+                console.log('Conectado ao servidor Socket.IO');
+            });
+
+            socket.on('connect_error', (err) => {
+                console.error('Erro de conexão com o servidor Socket.IO:', err);
+            });
+        } catch (err) {
+            console.error('Erro na inicialização do Socket.IO:', err);
+        }
+        let usuarioLogado = null;
+        let senhaAtual = null;
+        
+        // Variáveis para estatísticas (mantidas no frontend para cálculo local)
+        let tempoAtendimento = { total: 0, count: 0 };
+        
+        // DOM Ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verifica se há usuário logado (mantido para persistência de sessão no frontend)
+            const savedUser  = localStorage.getItem('loggedUser ');
+            if (savedUser ) {
+                usuarioLogado = JSON.parse(savedUser );
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('atendente-panel').classList.remove('hidden');
+                document.querySelector('#atendente-panel h1').textContent = `Bem-vindo, ${usuarioLogado.nome}`;
+            }
+            
+            // Inicializa tabs
+            const tabs = document.querySelectorAll('.tab-btn');
+            const contents = document.querySelectorAll('.tab-content');
+
+            function switchTab(tabId) {
+                contents.forEach(c => c.classList.remove('active'));
+                tabs.forEach(t => t.classList.remove('border-blue-500', 'text-blue-600'));
+
+                document.getElementById(tabId).classList.add('active');
+                document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('border-blue-500', 'text-blue-600');
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    switchTab(this.dataset.tab);
+                });
+            });
+
+            switchTab('totem'); // Ativa a aba 'totem' por padrão
+        });
+        
+        // Socket.io listeners (agora recebendo dados do backend real)
+        
+        // Recebe o estado inicial das filas ou atualizações gerais
+        socket.on('update-filas', (filas) => {
+            atualizarFilas(filas);
+        });
+
+        socket.on('senha-gerada', (data) => {
+            // Atualiza o totem com a senha gerada (apenas para o totem que gerou)
+            // O backend já enviou as filas atualizadas via 'update-filas'
+            const senhaDiv = document.getElementById('senha-gerada');
+            document.getElementById('numero-senha').textContent = data.senha.numero;
+            document.getElementById('tipo-senha').textContent = data.senha.tipo;
+            senhaDiv.classList.remove('hidden');
+            
+            senhaDiv.classList.add('senha-chamada'); // Reutilizando a classe para feedback visual
+            setTimeout(() => senhaDiv.classList.remove('senha-chamada'), 2000);
+
+            atualizarFilas(data.filas); // Garante que as filas no display sejam atualizadas
+        });
+        
+        socket.on('senha-chamada', (data) => {
+            // Atualiza o visor para TODOS os clientes
+            document.getElementById('senha-display').textContent = data.senha.numero;
+            document.getElementById('guiche-display').textContent = `GUICHÊ: ${data.guiche}`;
+            document.getElementById('senha-display').classList.remove('hidden');
+            document.getElementById('guiche-display').classList.remove('hidden');
+            document.getElementById('mensagem-aguarde').classList.add('hidden');
+            
+            // Efeito visual
+            const display = document.getElementById('senha-display');
+            display.classList.remove('hidden');
+            display.classList.add('senha-chamada');
+            
+            // Timer para esconder depois de 10 segundos
+            setTimeout(() => {
+                display.classList.remove('senha-chamada');
+                // Opcional: esconder a senha e guichê e mostrar "AGUARDE SENHA..." novamente
+                // document.getElementById('senha-display').classList.add('hidden');
+                // document.getElementById('guiche-display').classList.add('hidden');
+                // document.getElementById('mensagem-aguarde').classList.remove('hidden');
+            }, 10000);
+            
+            // Atualiza o painel do atendente SE for a senha que ele chamou
+            if (usuarioLogado && data.atendenteId === usuarioLogado.id) {
+                senhaAtual = data.senha;
+                document.getElementById('senha-atual').textContent = data.senha.numero;
+                document.getElementById('senha-tipo').textContent = `Tipo: ${data.senha.tipo}`;
+                document.getElementById('senha-tipo').className = '';
+                document.getElementById('senha-tipo').classList.add(
+                    data.senha.tipo === 'Normal' ? 'text-blue-500' : 
+                    data.senha.tipo === 'Prioritário' ? 'text-green-500' : 'text-yellow-600'
+                );
+                senhaAtual.inicio = new Date(); // Inicia contagem de tempo
+            }
+            
+            atualizarFilas(data.filas);
+        });
+        
+        socket.on('atendimento-finalizado', (data) => {
+            if (usuarioLogado && data.atendenteId === usuarioLogado.id) {
+                const fim = new Date();
+                const duracao = Math.floor((fim - senhaAtual.inicio) / 1000);
+                
+                tempoAtendimento.total += duracao;
+                tempoAtendimento.count++;
+                
+                const media = tempoAtendimento.total / tempoAtendimento.count;
+                document.getElementById('senha-tempo').textContent = `Tempo médio: ${formatarTempo(media)}`;
+                
+                senhaAtual = null;
+                document.getElementById('senha-atual').textContent = 'Nenhuma senha chamada';
+                document.getElementById('senha-tipo').textContent = '';
+            }
+            atualizarFilas(data.filas);
+        });
+
+        socket.on('redirecionar-sucesso', (data) => {
+            if (usuarioLogado && data.atendenteId === usuarioLogado.id) {
+                senhaAtual = null;
+                document.getElementById('senha-atual').textContent = 'Nenhuma senha chamada';
+                document.getElementById('senha-tipo').textContent = '';
+                alert(`Senha ${data.senha.numero} redirecionada para ${data.novoTipo}.`);
+            }
+            atualizarFilas(data.filas);
+        });
+        
+        socket.on('redirect-error', (mensagem) => {
+            alert(mensagem);
+        });
+
+        socket.on('chamar-error', (mensagem) => {
+            alert(mensagem);
+        });
+
+        // Adicionado para capturar erros de geração de senha
+        socket.on('gerar-senha-error', (mensagem) => {
+            alert(mensagem);
+            console.error('Erro ao gerar senha:', mensagem);
+        });
+        
+        // REMOVIDO: socket.on('login-success') e socket.on('login-failure')
+        // A lógica de login agora é tratada diretamente na função fazerLogin()
+        
+        // Funções do totem
+        function gerarSenha(tipo) {
+            // Agora, o frontend APENAS emite o evento. O backend gera a senha e a envia de volta.
+            socket.emit('gerar-senha', tipo);
+        }
+        
+        function fazerLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginErrorDiv = document.getElementById('login-error');
+
+            // Simulação de autenticação simples
+            if (username === 'atendente' && password === '123') {
+                usuarioLogado = { id: 'atendente123', nome: username }; // Define o usuário logado
+                localStorage.setItem('loggedUser ', JSON.stringify(usuarioLogado)); // Persiste no localStorage
+
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('atendente-panel').classList.remove('hidden');
+                document.querySelector('#atendente-panel h1').textContent = `Bem-vindo, ${usuarioLogado.nome}`;
+                document.getElementById('senha-atual').textContent = 'Nenhuma senha chamada';
+                document.getElementById('senha-tipo').textContent = '';
+                loginErrorDiv.classList.add('hidden'); // Esconde qualquer mensagem de erro anterior
+
+                // O backend já enviará o estado inicial das filas após a conexão
+                // Não precisamos emitir 'login-success' para o socket aqui, pois a lógica é local
+            } else {
+                loginErrorDiv.textContent = 'Usuário ou senha inválidos.';
+                loginErrorDiv.classList.remove('hidden');
+            }
+        }
+        
+        function chamarProximaSenha(tipo) {
+            if (!usuarioLogado) {
+                alert('Faça login primeiro');
+                return;
+            }
+            
+            const guiche = document.getElementById('select-guiche').value;
+            // Emite o evento para o backend
+            socket.emit('chamar-senha', { tipo, guiche, atendenteId: usuarioLogado.id });
+        }
+        
+        function finalizarAtendimento() {
+            if (!senhaAtual) {
+                alert('Nenhuma senha em atendimento');
+                return;
+            }
+            // Emite o evento para o backend
+            socket.emit('finalizar-atendimento', { 
+                senha: senhaAtual, 
+                atendenteId: usuarioLogado.id 
+            });
+        }
+        
+        function redirecionarSenha() {
+            if (!senhaAtual) {
+                alert('Nenhuma senha em atendimento');
+                return;
+            }
+            
+            const novoTipo = prompt('Para qual tipo redirecionar? (Normal/Prioritário/Retirada)');
+            if (novoTipo && ['Normal', 'Prioritário', 'Retirada'].includes(novoTipo)) {
+                // Emite o evento para o backend
+                socket.emit('redirecionar-senha', { 
+                    senha: senhaAtual, 
+                    novoTipo,
+                    atendenteId: usuarioLogado.id 
+                });
+            } else {
+                alert('Tipo de redirecionamento inválido.');
+            }
+        }
+        
+        // Funções utilitárias
+        function atualizarFilas(filas) {
+            document.getElementById('fila-normal').textContent = filas.Normal.length;
+            document.getElementById('fila-prioritario').textContent = filas.Prioritário.length;
+            document.getElementById('fila-retirada').textContent = filas.Retirada.length;
+        }
+        
+        function formatarTempo(segundos) {
+            const minutos = Math.floor(segundos / 60);
+            const segs = Math.floor(segundos % 60);
+            return `${minutos}m ${segs}s`;
+        }
+    </script>
+</body>
+</html>
